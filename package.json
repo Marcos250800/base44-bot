@@ -1,0 +1,12 @@
+{
+  "name": "base44-bot",
+  "version": "1.0.0",
+  "description": "Bot para alertar disponibilidad de citas en Base44",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
