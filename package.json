@@ -1,13 +1,13 @@
 {
   "name": "base44-bot",
   "version": "1.0.0",
-  "description": "Bot para citas",
+  "description": "Bot avanzado con Puppeteer",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "node-fetch": "^2.6.7"
+    "puppeteer": "^21.0.0"
   }
 }
 
