@@ -2,11 +2,11 @@ const puppeteer = require('puppeteer');
 const { checkInterval, base44ApiUrl } = require('./config');
 
 async function checkCitas() {
-    console.log("🤖 Iniciando revisión...");
+    console.log("🤖 [Base44] Iniciando revisión de citas...");
     let browser = null;
 
     try {
-        // Lanzamos el navegador (modo oculto para servidores)
+        // Lanzamos el navegador
         browser = await puppeteer.launch({
             headless: "new",
             args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -14,61 +14,65 @@ async function checkCitas() {
 
         const page = await browser.newPage();
 
-        // 1. Manejar la alerta de "Welcome / Bienvenido" automáticamente
+        // 1. Gestionar la alerta de "Welcome / Bienvenido"
         page.on('dialog', async dialog => {
-            console.log(`🔔 Alerta detectada: ${dialog.message()}`);
-            await dialog.accept(); // Le da a "Aceptar"
+            console.log(`🔔 Alerta detectada: ${dialog.message()} -> Aceptando...`);
+            await dialog.accept(); 
         });
 
-        // 2. Ir a la web
-        console.log("🌍 Entrando a la web...");
+        // 2. Ir a la web (Damos tiempo extra por si va lenta)
+        console.log("🌍 Entrando en la web del Consulado...");
         await page.goto(base44ApiUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-        // 3. Buscar el botón "Continue / Continuar" y darle clic
-        console.log("point_right Buscando botón Continuar...");
-        
-        // Esperamos a que aparezca el botón verde
-        const botonContinuar = await page.waitForSelector('input[value="Continue / Continuar"], button:contains("Continuar")', { timeout: 10000 }).catch(() => null);
-
-        if (botonContinuar) {
-            await botonContinuar.click();
-            console.log("✅ Clic en Continuar realizado.");
-            
-            // Esperamos a que cargue la siguiente pantalla
-            await page.waitForNavigation({ waitUntil: 'networkidle2' });
-        } else {
-            // A veces el botón tiene otro ID o forma, intentamos buscar por texto si lo anterior falló
-            const botones = await page.$x("//input[contains(@value, 'Continuar')] | //button[contains(., 'Continuar')]");
-            if (botones.length > 0) {
-                await botones[0].click();
-                console.log("✅ Clic en Continuar (método 2) realizado.");
-                await page.waitForNavigation({ waitUntil: 'networkidle2' });
+        // 3. Buscar el botón "Continue" y pulsarlo
+        try {
+            const boton = await page.waitForSelector('input[value*="Continuar"], input[value*="Continue"], button', { timeout: 6000 });
+            if (boton) {
+                console.log("point_right Pulsando botón 'Continuar'...");
+                await boton.click();
+                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 });
             }
+        } catch (e) {
+            // Si no hay botón, quizás ya estamos dentro. Seguimos.
         }
 
-        // 4. Leer el resultado final
-        // Aquí buscamos si hay texto que diga que NO hay citas para saber el estado
+        // 4. ANÁLISIS INTELIGENTE (Basado en tu foto)
         const contenido = await page.content();
+        const textoWeb = contenido.toLowerCase();
+
+        // Frases exactas que confirman que NO hay cita
+        const fraseRechazo1 = "no hay horas disponibles";
+        const fraseRechazo2 = "inténtelo de nuevo";
         
-        if (contenido.includes("No hay citas") || contenido.includes("no availability") || contenido.includes("no hay disponibilidad")) {
-            console.log("❌ No hay citas disponibles por ahora.");
+        // Errores técnicos
+        const errores = ["service unavailable", "504 gateway", "error"];
+
+        if (textoWeb.includes(fraseRechazo1) || textoWeb.includes(fraseRechazo2)) {
+            // CASO A: Está el cartel de tu foto. Falsa alarma.
+            console.log("❌ SIN NOVEDAD: Detectado mensaje 'No hay horas disponibles'.");
+        
+        } else if (errores.some(e => textoWeb.includes(e)) || textoWeb.length < 200) {
+            // CASO B: La página falló al cargar.
+            console.log("⚠️ ERROR DE CARGA: La página salió en blanco o dio error. Ignorando.");
+        
         } else {
-            // Si NO encuentra el mensaje de error, es que ¡HAY ALGO!
-            console.log("🚨 ¡ATENCIÓN! POSIBLE CITA DETECTADA 🚨");
-            console.log("Revisa la web manualmente.");
+            // CASO C: ¡El cartel de rechazo NO está! ¡CITA POSIBLE!
+            console.log("🚨 ¡¡ATENCIÓN BASE44!! ¡POSIBLE CITA DETECTADA! 🚨");
+            console.log("👉 El mensaje de 'No hay horas' ha desaparecido. ¡Revisa ya!");
         }
 
     } catch (error) {
-        console.error("⚠️ Error durante la revisión:", error.message);
+        console.error("⚠️ Error en la revisión:", error.message);
     } finally {
-        if (browser) {
-            await browser.close();
-        }
+        if (browser) await browser.close();
     }
 }
 
-// Iniciar el bucle
-console.log("🚀 Bot de Citas (Puppeteer) Arrancado");
+// Iniciar el ciclo
+console.log("🚀 Monitor Base44 Listo. Esperando instrucciones...");
+// Ejecutar una vez al inicio
 checkCitas();
+// Repetir según el tiempo configurado
 setInterval(checkCitas, checkInterval);
+
 
